@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createTokenProvider } from './token-provider';
+import type { TokenProvider } from './token-provider';
 
-describe('Dynamic Auth Providers', () => {
+describe('Auth Provider Functionality', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
@@ -11,58 +11,35 @@ describe('Dynamic Auth Providers', () => {
     vi.useRealTimers();
   });
 
-  describe('createTokenProvider', () => {
-    it('should return cached token within refresh interval', async () => {
-      const getToken = vi.fn().mockResolvedValue('token123');
-      const provider = createTokenProvider(getToken, 900000);
+  describe('TokenProvider type', () => {
+    it('should handle async token functions', async () => {
+      const tokenProvider: TokenProvider = vi.fn().mockResolvedValue('async-token');
 
-      const token1 = await provider();
-      const token2 = await provider();
-
-      expect(token1).toBe('token123');
-      expect(token2).toBe('token123');
-      expect(getToken).toHaveBeenCalledTimes(1);
-    });
-
-    it('should refresh token after interval expires', async () => {
-      const getToken = vi.fn().mockResolvedValueOnce('token1').mockResolvedValueOnce('token2');
-
-      const provider = createTokenProvider(getToken, 900000);
-
-      const token1 = await provider();
-      expect(token1).toBe('token1');
-
-      vi.advanceTimersByTime(900001);
-
-      const token2 = await provider();
-      expect(token2).toBe('token2');
-      expect(getToken).toHaveBeenCalledTimes(2);
+      const token = await tokenProvider();
+      expect(token).toBe('async-token');
+      expect(tokenProvider).toHaveBeenCalledTimes(1);
     });
 
     it('should handle sync token functions', async () => {
-      const getToken = vi.fn().mockReturnValue('sync-token');
-      const provider = createTokenProvider(getToken, 900000);
+      const tokenProvider: TokenProvider = vi.fn().mockReturnValue('sync-token');
 
-      const token = await provider();
+      const token = await tokenProvider();
       expect(token).toBe('sync-token');
-      expect(getToken).toHaveBeenCalledTimes(1);
+      expect(tokenProvider).toHaveBeenCalledTimes(1);
     });
 
-    it('should work with default 15 minute refresh interval', async () => {
-      const getToken = vi.fn().mockResolvedValue('default-token');
-      const provider = createTokenProvider(getToken);
+    it('should handle token provider that returns promises', async () => {
+      const tokenProvider: TokenProvider = () => Promise.resolve('promise-token');
 
-      const token = await provider();
-      expect(token).toBe('default-token');
+      const token = await tokenProvider();
+      expect(token).toBe('promise-token');
+    });
 
-      vi.advanceTimersByTime(14 * 60 * 1000);
-      const cachedToken = await provider();
-      expect(cachedToken).toBe('default-token');
-      expect(getToken).toHaveBeenCalledTimes(1);
+    it('should handle token provider that returns strings directly', async () => {
+      const tokenProvider: TokenProvider = () => 'direct-token';
 
-      vi.advanceTimersByTime(2 * 60 * 1000);
-      await provider();
-      expect(getToken).toHaveBeenCalledTimes(2);
+      const token = await tokenProvider();
+      expect(token).toBe('direct-token');
     });
   });
 });

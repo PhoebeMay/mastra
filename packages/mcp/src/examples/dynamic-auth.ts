@@ -1,6 +1,6 @@
-import { MCPClient, createTokenProvider } from '@mastra/mcp';
+import { MCPClient } from '@mastra/mcp';
 
-// Example: Token that refreshes every 15 minutes
+// Example: Simple token function
 async function refreshMyToken(): Promise<string> {
   // Your token refresh logic here
   const response = await fetch('/api/refresh-token', {
@@ -11,8 +11,22 @@ async function refreshMyToken(): Promise<string> {
   return token;
 }
 
-// Create a dynamic token provider that refreshes every 15 minutes
-const dynamicAuthProvider = createTokenProvider(refreshMyToken, 15 * 60 * 1000);
+// Example: Token function with caching
+function createCachedTokenProvider(getToken: () => Promise<string>, refreshIntervalMs: number = 15 * 60 * 1000) {
+  let cachedToken: string | null = null;
+  let lastRefresh = 0;
+
+  return async () => {
+    const now = Date.now();
+    if (!cachedToken || now - lastRefresh >= refreshIntervalMs) {
+      cachedToken = await getToken();
+      lastRefresh = now;
+    }
+    return cachedToken;
+  };
+}
+
+const cachedTokenProvider = createCachedTokenProvider(refreshMyToken);
 
 // Use with MCPClient
 const mcp = new MCPClient({
@@ -20,7 +34,7 @@ const mcp = new MCPClient({
   servers: {
     myServer: {
       url: new URL('https://api.example.com/mcp'),
-      authProvider: dynamicAuthProvider, // Dynamic auth tokens!
+      authProvider: cachedTokenProvider, // Dynamic auth tokens!
     },
   },
 });
@@ -44,7 +58,7 @@ const staticWithDynamicAuth = new MCPClient({
   servers: {
     hybridServer: {
       url: new URL('https://api.example.com/mcp'),
-      authProvider: dynamicAuthProvider,
+      authProvider: cachedTokenProvider,
       requestInit: {
         headers: {
           'X-Client-ID': 'my-client-id',

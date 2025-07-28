@@ -92,7 +92,7 @@ type HttpServerDefinition = BaseServerOptions & {
   reconnectionOptions?: StreamableHTTPClientTransportOptions['reconnectionOptions'];
   sessionId?: StreamableHTTPClientTransportOptions['sessionId'];
   // Dynamic authorization - just provide the token
-  authProvider?: () => Promise<string> | string;
+  authProvider?: import('../auth/token-provider').TokenProvider;
 };
 
 export type MastraMCPServerDefinition = StdioServerDefinition | HttpServerDefinition;
