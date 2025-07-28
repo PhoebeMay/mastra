@@ -1,4 +1,4 @@
-import { MCPClient, createBearerTokenProvider } from '@mastra/mcp';
+import { MCPClient, createTokenProvider } from '@mastra/mcp';
 
 // Example: Token that refreshes every 15 minutes
 async function refreshMyToken(): Promise<string> {
@@ -12,7 +12,7 @@ async function refreshMyToken(): Promise<string> {
 }
 
 // Create a dynamic token provider that refreshes every 15 minutes
-const dynamicHeaderProvider = createBearerTokenProvider(
+const dynamicAuthProvider = createTokenProvider(
   refreshMyToken,
   15 * 60 * 1000, // 15 minutes
 );
@@ -23,7 +23,7 @@ const mcp = new MCPClient({
   servers: {
     myServer: {
       url: new URL('https://api.example.com/mcp'),
-      headerProvider: dynamicHeaderProvider, // 🎉 Dynamic auth headers!
+      authProvider: dynamicAuthProvider, // 🎉 Dynamic auth tokens!
     },
   },
 });
@@ -32,23 +32,31 @@ const mcp = new MCPClient({
 const tools = await mcp.getTools();
 console.log('Available tools:', Object.keys(tools));
 
-// Example with custom headers
-const customHeaderProvider = async () => {
-  const token = await refreshMyToken();
-  return {
-    Authorization: `Bearer ${token}`,
-    'X-Client-ID': 'my-client-id',
-    'X-API-Version': '2024-01',
-  };
-};
-
-const customMcp = new MCPClient({
+// Example with direct token function (no caching)
+const directTokenMcp = new MCPClient({
   servers: {
-    customServer: {
+    directServer: {
       url: new URL('https://api.example.com/mcp'),
-      headerProvider: customHeaderProvider,
+      authProvider: refreshMyToken, // Direct function call each time
     },
   },
 });
 
-export { mcp, customMcp };
+// Example with static headers for additional custom headers
+const staticWithDynamicAuth = new MCPClient({
+  servers: {
+    hybridServer: {
+      url: new URL('https://api.example.com/mcp'),
+      authProvider: dynamicAuthProvider,
+      requestInit: {
+        headers: {
+          'X-Client-ID': 'my-client-id',
+          'X-API-Version': '2024-01',
+          // Authorization will be added dynamically by authProvider
+        },
+      },
+    },
+  },
+});
+
+export { mcp, directTokenMcp, staticWithDynamicAuth };

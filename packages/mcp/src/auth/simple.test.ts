@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createTokenProvider, createBearerTokenProvider } from './simple';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createTokenProvider } from './simple';
 
 describe('Dynamic Auth Providers', () => {
   beforeEach(() => {
@@ -49,32 +49,23 @@ describe('Dynamic Auth Providers', () => {
       expect(token).toBe('sync-token');
       expect(getToken).toHaveBeenCalledTimes(1);
     });
-  });
 
-  describe('createBearerTokenProvider', () => {
-    it('should return Authorization header with Bearer prefix', async () => {
-      const getToken = vi.fn().mockResolvedValue('my-access-token');
-      const provider = createBearerTokenProvider(getToken);
+    it('should work with default 15 minute refresh interval', async () => {
+      const getToken = vi.fn().mockResolvedValue('default-token');
+      const provider = createTokenProvider(getToken); // No interval specified
 
-      const headers = await provider();
+      const token = await provider();
+      expect(token).toBe('default-token');
 
-      expect(headers).toEqual({
-        Authorization: 'Bearer my-access-token',
-      });
-    });
+      // Advance by 14 minutes - should use cache
+      vi.advanceTimersByTime(14 * 60 * 1000);
+      const cachedToken = await provider();
+      expect(cachedToken).toBe('default-token');
+      expect(getToken).toHaveBeenCalledTimes(1);
 
-    it('should use custom refresh interval', async () => {
-      const getToken = vi.fn().mockResolvedValueOnce('token1').mockResolvedValueOnce('token2');
-
-      const provider = createBearerTokenProvider(getToken, 600000); // 10 minutes
-
+      // Advance past 15 minutes - should refresh
+      vi.advanceTimersByTime(2 * 60 * 1000);
       await provider();
-
-      // Advance time by 10 minutes + 1ms
-      vi.advanceTimersByTime(600001);
-
-      await provider();
-
       expect(getToken).toHaveBeenCalledTimes(2);
     });
   });

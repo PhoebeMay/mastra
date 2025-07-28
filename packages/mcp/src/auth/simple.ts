@@ -1,9 +1,8 @@
 /**
- * Simple function-based dynamic authentication for MCP
+ * Simple token-based dynamic authentication for MCP
  */
 
-export type TokenProvider = () => Promise<string> | string;
-export type HeaderProvider = () => Promise<Record<string, string>> | Record<string, string>;
+export type AuthProvider = () => Promise<string> | string;
 
 /**
  * Create a token provider that refreshes automatically
@@ -11,7 +10,7 @@ export type HeaderProvider = () => Promise<Record<string, string>> | Record<stri
 export function createTokenProvider(
   getToken: () => Promise<string> | string,
   refreshIntervalMs: number = 15 * 60 * 1000, // 15 minutes default
-): TokenProvider {
+): AuthProvider {
   let cachedToken: string | null = null;
   let lastRefresh = 0;
 
@@ -24,22 +23,5 @@ export function createTokenProvider(
     }
 
     return cachedToken;
-  };
-}
-
-/**
- * Create a Bearer token header provider
- */
-export function createBearerTokenProvider(
-  getToken: () => Promise<string> | string,
-  refreshIntervalMs?: number,
-): HeaderProvider {
-  const tokenProvider = createTokenProvider(getToken, refreshIntervalMs);
-
-  return async () => {
-    const token = await tokenProvider();
-    return {
-      Authorization: `Bearer ${token}`,
-    };
   };
 }

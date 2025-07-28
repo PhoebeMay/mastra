@@ -37,7 +37,6 @@ import { asyncExitHook, gracefulExit } from 'exit-hook';
 import { z } from 'zod';
 import { convertJsonSchemaToZod } from 'zod-from-json-schema';
 import type { JSONSchema } from 'zod-from-json-schema';
-import type { HeaderProvider } from '../auth/simple';
 import { ElicitationClientActions } from './elicitationActions';
 import { PromptClientActions } from './promptActions';
 import { ResourceClientActions } from './resourceActions';
@@ -92,8 +91,8 @@ type HttpServerDefinition = BaseServerOptions & {
   eventSourceInit?: SSEClientTransportOptions['eventSourceInit'];
   reconnectionOptions?: StreamableHTTPClientTransportOptions['reconnectionOptions'];
   sessionId?: StreamableHTTPClientTransportOptions['sessionId'];
-  // Simple dynamic header provider
-  headerProvider?: HeaderProvider;
+  // Dynamic authorization - just provide the token
+  authProvider?: () => Promise<string> | string;
 };
 
 export type MastraMCPServerDefinition = StdioServerDefinition | HttpServerDefinition;
@@ -240,29 +239,29 @@ export class InternalMastraMCPClient extends MastraBase {
   }
 
   private async connectHttp(url: URL) {
-    const { requestInit, eventSourceInit } = this.serverConfig;
-    const headerProvider = 'headerProvider' in this.serverConfig ? this.serverConfig.headerProvider : undefined;
+    const { requestInit, eventSourceInit, authProvider } = this.serverConfig;
 
     this.log('debug', `Attempting to connect to URL: ${url}`);
 
-    // Get dynamic headers if provider is available
-    let dynamicHeaders = {};
-    if (headerProvider) {
+    // Get dynamic auth token if provider is available
+    let authHeaders = {};
+    if (authProvider) {
       try {
-        dynamicHeaders = await headerProvider();
-        this.log('debug', 'Retrieved dynamic headers for authentication');
+        const token = await authProvider();
+        authHeaders = { Authorization: `Bearer ${token}` };
+        this.log('debug', 'Retrieved dynamic auth token');
       } catch (error) {
-        this.log('error', `Failed to get dynamic headers: ${error}`);
-        throw new Error(`Dynamic header provider failed: ${error}`);
+        this.log('error', `Failed to get auth token: ${error}`);
+        throw new Error(`Auth provider failed: ${error}`);
       }
     }
 
-    // Merge dynamic headers with requestInit
+    // Merge auth headers with requestInit (auth headers take precedence)
     const finalRequestInit = {
       ...requestInit,
       headers: {
         ...requestInit?.headers,
-        ...dynamicHeaders,
+        ...authHeaders,
       },
     };
 
@@ -293,12 +292,12 @@ export class InternalMastraMCPClient extends MastraBase {
     if (shouldTrySSE) {
       this.log('debug', 'Falling back to deprecated HTTP+SSE transport...');
       try {
-        // Merge dynamic headers with eventSourceInit too
+        // Merge auth headers with eventSourceInit too
         const finalEventSourceInit = {
           ...eventSourceInit,
           headers: {
             ...(eventSourceInit as any)?.headers,
-            ...dynamicHeaders,
+            ...authHeaders,
           },
         };
 
