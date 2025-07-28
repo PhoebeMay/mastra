@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createTokenProvider } from './simple';
+import { createTokenProvider } from './token-provider';
 
 describe('Dynamic Auth Providers', () => {
   beforeEach(() => {

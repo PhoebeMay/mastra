@@ -291,20 +291,14 @@ export class InternalMastraMCPClient extends MastraBase {
 
     if (shouldTrySSE) {
       this.log('debug', 'Falling back to deprecated HTTP+SSE transport...');
+      if (authProvider) {
+        this.log('warn', 'Dynamic auth may not work with deprecated SSE transport fallback');
+      }
       try {
-        // Merge auth headers with eventSourceInit too
-        const finalEventSourceInit = {
-          ...eventSourceInit,
-          headers: {
-            ...(eventSourceInit as any)?.headers,
-            ...authHeaders,
-          },
-        };
-
-        // Fallback to SSE transport
+        // Fallback to SSE transport (deprecated - dynamic auth not fully supported)
         const sseTransport = new SSEClientTransport(url, { 
           requestInit: finalRequestInit, 
-          eventSourceInit: finalEventSourceInit 
+          eventSourceInit 
         });
         await this.client.connect(sseTransport, { timeout: this.serverConfig.timeout ?? this.timeout });
         this.transport = sseTransport;
