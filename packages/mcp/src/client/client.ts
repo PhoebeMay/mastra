@@ -4,6 +4,8 @@ import type { RuntimeContext } from '@mastra/core/di';
 import { ErrorCategory, ErrorDomain, MastraError } from '@mastra/core/error';
 import { createTool } from '@mastra/core/tools';
 import { isZodType } from '@mastra/core/utils';
+import type { TokenProvider } from '../auth/token-provider';
+import { createTokenProviderAdapter } from '../auth/oauth-adapter';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js';
@@ -91,6 +93,8 @@ type HttpServerDefinition = BaseServerOptions & {
   eventSourceInit?: SSEClientTransportOptions['eventSourceInit'];
   reconnectionOptions?: StreamableHTTPClientTransportOptions['reconnectionOptions'];
   sessionId?: StreamableHTTPClientTransportOptions['sessionId'];
+  // Dynamic authorization - just provide the token
+  authProvider?: TokenProvider;
 };
 
 export type MastraMCPServerDefinition = StdioServerDefinition | HttpServerDefinition;
@@ -151,6 +155,7 @@ export class InternalMastraMCPClient extends MastraBase {
     this.logHandler = server.logger;
     this.enableServerLogs = server.enableServerLogs ?? true;
     this.serverConfig = server;
+
 
     const clientCapabilities = { ...capabilities, elicitation: {} };
 
@@ -237,9 +242,27 @@ export class InternalMastraMCPClient extends MastraBase {
   }
 
   private async connectHttp(url: URL) {
-    const { requestInit, eventSourceInit } = this.serverConfig;
+    const { requestInit, eventSourceInit, authProvider, reconnectionOptions, sessionId } = this.serverConfig;
 
     this.log('debug', `Attempting to connect to URL: ${url}`);
+
+    // Create transport options with native MCP auth support
+    const transportOptions: StreamableHTTPClientTransportOptions = {
+      requestInit,
+      reconnectionOptions,
+      sessionId,
+    };
+
+    // Set up native MCP auth if provider is available
+    if (authProvider) {
+      try {
+        this.log('debug', 'Setting up native MCP OAuth provider');
+        transportOptions.authProvider = createTokenProviderAdapter(authProvider);
+      } catch (error) {
+        this.log('error', `Failed to create OAuth provider: ${error}`);
+        throw new Error(`Auth provider setup failed: ${error}`);
+      }
+    }
 
     // Assume /sse means sse.
     let shouldTrySSE = url.pathname.endsWith(`/sse`);
@@ -248,10 +271,7 @@ export class InternalMastraMCPClient extends MastraBase {
       try {
         // Try Streamable HTTP transport first
         this.log('debug', 'Trying Streamable HTTP transport...');
-        const streamableTransport = new StreamableHTTPClientTransport(url, {
-          requestInit,
-          reconnectionOptions: this.serverConfig.reconnectionOptions,
-        });
+        const streamableTransport = new StreamableHTTPClientTransport(url, transportOptions);
         await this.client.connect(streamableTransport, {
           timeout:
             // this is hardcoded to 3s because the long default timeout would be extremely slow for sse backwards compat (60s)
@@ -267,9 +287,15 @@ export class InternalMastraMCPClient extends MastraBase {
 
     if (shouldTrySSE) {
       this.log('debug', 'Falling back to deprecated HTTP+SSE transport...');
+      if (authProvider) {
+        this.log('warn', 'Dynamic auth may not work with deprecated SSE transport fallback');
+      }
       try {
-        // Fallback to SSE transport
-        const sseTransport = new SSEClientTransport(url, { requestInit, eventSourceInit });
+        // Fallback to SSE transport (deprecated - no native auth support)
+        const sseTransport = new SSEClientTransport(url, { 
+          requestInit, 
+          eventSourceInit 
+        });
         await this.client.connect(sseTransport, { timeout: this.serverConfig.timeout ?? this.timeout });
         this.transport = sseTransport;
         this.log('debug', 'Successfully connected using deprecated HTTP+SSE transport.');
@@ -365,6 +391,7 @@ export class InternalMastraMCPClient extends MastraBase {
       this.isConnected = Promise.resolve(false);
     }
   }
+
 
   async listResources() {
     this.log('debug', `Requesting resources from MCP server`);
