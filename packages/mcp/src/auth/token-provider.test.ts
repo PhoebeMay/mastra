@@ -4,7 +4,6 @@ import { createTokenProvider } from './token-provider';
 describe('Dynamic Auth Providers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset Date.now for consistent testing
     vi.useFakeTimers();
   });
 
@@ -15,7 +14,7 @@ describe('Dynamic Auth Providers', () => {
   describe('createTokenProvider', () => {
     it('should return cached token within refresh interval', async () => {
       const getToken = vi.fn().mockResolvedValue('token123');
-      const provider = createTokenProvider(getToken, 900000); // 15 minutes
+      const provider = createTokenProvider(getToken, 900000);
 
       const token1 = await provider();
       const token2 = await provider();
@@ -28,12 +27,11 @@ describe('Dynamic Auth Providers', () => {
     it('should refresh token after interval expires', async () => {
       const getToken = vi.fn().mockResolvedValueOnce('token1').mockResolvedValueOnce('token2');
 
-      const provider = createTokenProvider(getToken, 900000); // 15 minutes
+      const provider = createTokenProvider(getToken, 900000);
 
       const token1 = await provider();
       expect(token1).toBe('token1');
 
-      // Advance time past refresh interval
       vi.advanceTimersByTime(900001);
 
       const token2 = await provider();
@@ -52,18 +50,16 @@ describe('Dynamic Auth Providers', () => {
 
     it('should work with default 15 minute refresh interval', async () => {
       const getToken = vi.fn().mockResolvedValue('default-token');
-      const provider = createTokenProvider(getToken); // No interval specified
+      const provider = createTokenProvider(getToken);
 
       const token = await provider();
       expect(token).toBe('default-token');
 
-      // Advance by 14 minutes - should use cache
       vi.advanceTimersByTime(14 * 60 * 1000);
       const cachedToken = await provider();
       expect(cachedToken).toBe('default-token');
       expect(getToken).toHaveBeenCalledTimes(1);
 
-      // Advance past 15 minutes - should refresh
       vi.advanceTimersByTime(2 * 60 * 1000);
       await provider();
       expect(getToken).toHaveBeenCalledTimes(2);

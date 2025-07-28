@@ -12,10 +12,7 @@ async function refreshMyToken(): Promise<string> {
 }
 
 // Create a dynamic token provider that refreshes every 15 minutes
-const dynamicAuthProvider = createTokenProvider(
-  refreshMyToken,
-  15 * 60 * 1000, // 15 minutes
-);
+const dynamicAuthProvider = createTokenProvider(refreshMyToken, 15 * 60 * 1000);
 
 // Use with MCPClient
 const mcp = new MCPClient({
@@ -23,7 +20,7 @@ const mcp = new MCPClient({
   servers: {
     myServer: {
       url: new URL('https://api.example.com/mcp'),
-      authProvider: dynamicAuthProvider, // 🎉 Dynamic auth tokens!
+      authProvider: dynamicAuthProvider, // Dynamic auth tokens!
     },
   },
 });
