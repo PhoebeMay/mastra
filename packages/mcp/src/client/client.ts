@@ -12,6 +12,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { DEFAULT_REQUEST_TIMEOUT_MSEC } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import type { HeaderProvider } from '../auth/simple';
 import type {
   ClientCapabilities,
   ElicitRequest,
@@ -91,6 +92,8 @@ type HttpServerDefinition = BaseServerOptions & {
   eventSourceInit?: SSEClientTransportOptions['eventSourceInit'];
   reconnectionOptions?: StreamableHTTPClientTransportOptions['reconnectionOptions'];
   sessionId?: StreamableHTTPClientTransportOptions['sessionId'];
+  // Simple dynamic header provider
+  headerProvider?: HeaderProvider;
 };
 
 export type MastraMCPServerDefinition = StdioServerDefinition | HttpServerDefinition;
@@ -238,8 +241,30 @@ export class InternalMastraMCPClient extends MastraBase {
 
   private async connectHttp(url: URL) {
     const { requestInit, eventSourceInit } = this.serverConfig;
+    const headerProvider = 'headerProvider' in this.serverConfig ? this.serverConfig.headerProvider : undefined;
 
     this.log('debug', `Attempting to connect to URL: ${url}`);
+
+    // Get dynamic headers if provider is available
+    let dynamicHeaders = {};
+    if (headerProvider) {
+      try {
+        dynamicHeaders = await headerProvider();
+        this.log('debug', 'Retrieved dynamic headers for authentication');
+      } catch (error) {
+        this.log('error', `Failed to get dynamic headers: ${error}`);
+        throw new Error(`Dynamic header provider failed: ${error}`);
+      }
+    }
+
+    // Merge dynamic headers with requestInit
+    const finalRequestInit = {
+      ...requestInit,
+      headers: {
+        ...requestInit?.headers,
+        ...dynamicHeaders,
+      },
+    };
 
     // Assume /sse means sse.
     let shouldTrySSE = url.pathname.endsWith(`/sse`);
@@ -249,7 +274,7 @@ export class InternalMastraMCPClient extends MastraBase {
         // Try Streamable HTTP transport first
         this.log('debug', 'Trying Streamable HTTP transport...');
         const streamableTransport = new StreamableHTTPClientTransport(url, {
-          requestInit,
+          requestInit: finalRequestInit,
           reconnectionOptions: this.serverConfig.reconnectionOptions,
         });
         await this.client.connect(streamableTransport, {
@@ -268,8 +293,20 @@ export class InternalMastraMCPClient extends MastraBase {
     if (shouldTrySSE) {
       this.log('debug', 'Falling back to deprecated HTTP+SSE transport...');
       try {
+        // Merge dynamic headers with eventSourceInit too
+        const finalEventSourceInit = {
+          ...eventSourceInit,
+          headers: {
+            ...(eventSourceInit as any)?.headers,
+            ...dynamicHeaders,
+          },
+        };
+
         // Fallback to SSE transport
-        const sseTransport = new SSEClientTransport(url, { requestInit, eventSourceInit });
+        const sseTransport = new SSEClientTransport(url, { 
+          requestInit: finalRequestInit, 
+          eventSourceInit: finalEventSourceInit 
+        });
         await this.client.connect(sseTransport, { timeout: this.serverConfig.timeout ?? this.timeout });
         this.transport = sseTransport;
         this.log('debug', 'Successfully connected using deprecated HTTP+SSE transport.');
