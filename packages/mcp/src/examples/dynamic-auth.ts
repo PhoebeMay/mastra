@@ -30,6 +30,7 @@ const mcp = new MCPClient({
 
 // The client will automatically refresh tokens as needed
 const tools = await mcp.getTools();
+console.log('Available tools:', Object.keys(tools));
 
 // Example with custom headers
 const customHeaderProvider = async () => {
