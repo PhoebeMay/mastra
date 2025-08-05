@@ -96,7 +96,7 @@ export class PostgresStore extends MastraStorage {
       this.client = this.db;
 
       const operations = new StoreOperationsPG({ client: this.client, schemaName: this.schema });
-      const scores = new ScoresPG({ client: this.client, operations });
+      const scores = new ScoresPG({ client: this.client, operations, schema: this.schema });
       const traces = new TracesPG({ client: this.client, operations, schema: this.schema });
       const workflows = new WorkflowsPG({ client: this.client, operations, schema: this.schema });
       const legacyEvals = new LegacyEvalsPG({ client: this.client, schema: this.schema });
@@ -128,6 +128,7 @@ export class PostgresStore extends MastraStorage {
       resourceWorkingMemory: true,
       hasColumn: true,
       createTable: true,
+      deleteMessages: true,
     };
   }
 
@@ -288,6 +289,10 @@ export class PostgresStore extends MastraStorage {
     })[];
   }): Promise<MastraMessageV2[]> {
     return this.stores.memory.updateMessages({ messages });
+  }
+
+  async deleteMessages(messageIds: string[]): Promise<void> {
+    return this.stores.memory.deleteMessages(messageIds);
   }
 
   async getResourceById({ resourceId }: { resourceId: string }): Promise<StorageResourceType | null> {

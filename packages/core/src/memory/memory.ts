@@ -4,7 +4,7 @@ import { MessageList } from '../agent/message-list';
 import type { MastraMessageV2, UIMessageWithMetadata } from '../agent/message-list';
 import { MastraBase } from '../base';
 import type { Mastra } from '../mastra';
-import type { MastraStorage, StorageGetMessagesArg, ThreadSortOptions } from '../storage';
+import type { MastraStorage, PaginationInfo, StorageGetMessagesArg, ThreadSortOptions } from '../storage';
 import { augmentWithInit } from '../storage/storageWithInit';
 import type { CoreTool } from '../tools';
 import { deepMerge } from '../utils';
@@ -272,6 +272,14 @@ export abstract class MastraMemory extends MastraBase {
     sortDirection,
   }: { resourceId: string } & ThreadSortOptions): Promise<StorageThreadType[]>;
 
+  abstract getThreadsByResourceIdPaginated(
+    args: {
+      resourceId: string;
+      page: number;
+      perPage: number;
+    } & ThreadSortOptions,
+  ): Promise<PaginationInfo & { threads: StorageThreadType[] }>;
+
   /**
    * Saves or updates a thread
    * @param thread - The thread data to save
@@ -471,4 +479,11 @@ export abstract class MastraMemory extends MastraBase {
     searchString?: string;
     memoryConfig?: MemoryConfig;
   }): Promise<{ success: boolean; reason: string }>;
+
+  /**
+   * Deletes multiple messages by their IDs
+   * @param messageIds - Array of message IDs to delete
+   * @returns Promise that resolves when all messages are deleted
+   */
+  abstract deleteMessages(messageIds: string[]): Promise<void>;
 }

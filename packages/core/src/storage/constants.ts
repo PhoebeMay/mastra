@@ -1,4 +1,4 @@
-import type { StorageColumn, ThreadOrderBy, ThreadSortDirection } from './types';
+import type { StorageColumn } from './types';
 
 export const TABLE_WORKFLOW_SNAPSHOT = 'mastra_workflow_snapshot';
 export const TABLE_EVALS = 'mastra_evals';
@@ -32,6 +32,10 @@ export const SCORERS_SCHEMA: Record<string, StorageColumn> = {
   scorer: {
     type: 'jsonb',
   },
+  preprocessStepResult: {
+    type: 'jsonb',
+    nullable: true,
+  },
   extractStepResult: {
     type: 'jsonb',
     nullable: true,
@@ -51,7 +55,19 @@ export const SCORERS_SCHEMA: Record<string, StorageColumn> = {
     type: 'jsonb',
     nullable: true,
   },
+  preprocessPrompt: {
+    type: 'text',
+    nullable: true,
+  },
   extractPrompt: {
+    type: 'text',
+    nullable: true,
+  },
+  generateScorePrompt: {
+    type: 'text',
+    nullable: true,
+  },
+  generateReasonPrompt: {
     type: 'text',
     nullable: true,
   },
@@ -59,6 +75,8 @@ export const SCORERS_SCHEMA: Record<string, StorageColumn> = {
     type: 'text',
     nullable: true,
   },
+
+  // Deprecated
   reasonPrompt: {
     type: 'text',
     nullable: true,
